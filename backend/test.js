@@ -1,26 +1,31 @@
-// Test simple pour vérifier que le backend répond
-// Jenkins exécute ce fichier dans le stage "Test"
 const http = require('http');
 
 const options = {
-  hostname: 'localhost',
-  port:     3000,
-  path:     '/tasks',
-  method:   'GET'
+  hostname: 'backend',
+  port: 3000,
+  path: '/tasks',
+  method: 'GET',
+  timeout: 5000
 };
 
 const req = http.request(options, (res) => {
   if (res.statusCode === 200) {
-    console.log('TEST OK — /tasks répond correctement');
-    process.exit(0);   // succès → Jenkins continue
+    console.log('✅ TEST OK — API fonctionnelle');
+    process.exit(0);
   } else {
-    console.error('TEST ECHOUE — status:', res.statusCode);
-    process.exit(1);   // échec → Jenkins s'arrête
+    console.error('❌ TEST FAIL — Status:', res.statusCode);
+    process.exit(1);
   }
 });
 
-req.on('error', (e) => {
-  console.error('TEST ECHOUE — serveur inaccessible:', e.message);
+req.on('error', (err) => {
+  console.error('❌ TEST FAIL — Erreur:', err.message);
+  process.exit(1);
+});
+
+req.on('timeout', () => {
+  console.error('❌ TEST FAIL — Timeout');
+  req.destroy();
   process.exit(1);
 });
 
