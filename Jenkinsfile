@@ -41,7 +41,7 @@ pipeline {
         sh 'docker-compose up -d'
 
         // Attendre que le backend soit vraiment prêt (max 30 secondes)
-        sh 'sleep 10'
+        sh 'sleep 20'
       }
     }
 
