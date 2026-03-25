@@ -19,7 +19,7 @@ pipeline {
       steps {
         echo 'Clonage du dépôt Git...'
         git branch: 'main',
-            url: 'https://github.com/moncompte/todo-app.git'
+            url: 'https://https://github.com/rabetsara/todo-list.git'
       }
     }
 
