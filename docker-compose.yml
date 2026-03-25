@@ -43,7 +43,7 @@ services:
       - POSTGRES_PASSWORD=secret123
     volumes:
       - pgdata:/var/lib/postgresql/data   # les données persistent même si le conteneur redémarre
-      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql  # exécuté au 1er démarrage
+      #- ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql  # exécuté au 1er démarrage
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s               # vérifie toutes les 5 secondes
