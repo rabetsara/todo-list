@@ -1,0 +1,14 @@
+-- Ce fichier est exécuté automatiquement par PostgreSQL
+-- au premier démarrage du conteneur
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id    SERIAL PRIMARY KEY,       -- numéro auto-incrémenté
+  title VARCHAR(255) NOT NULL,    -- le texte de la tâche
+  done  BOOLEAN DEFAULT false     -- cochée ou non
+);
+
+-- Quelques tâches de démonstration
+INSERT INTO tasks (title, done) VALUES
+  ('Apprendre Docker', false),
+  ('Comprendre Jenkins', false),
+  ('Finir ce TP', false);

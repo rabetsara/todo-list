@@ -1,0 +1,55 @@
+# ── docker-compose.yml ────────────────────────────────────────
+# Fait tourner les 3 services ensemble :
+#   1. frontend  (Nginx sert les fichiers HTML)
+#   2. backend   (Node.js — construit avec le Dockerfile)
+#   3. postgres  (image officielle)
+
+version: '3.8'
+
+services:
+
+  # ── SERVICE 1 : Frontend ──────────────────────────────────
+  frontend:
+    image: nginx:alpine          # image officielle Nginx, pas de Dockerfile
+    ports:
+      - "80:80"                  # le site est accessible sur http://localhost
+    volumes:
+      - ./frontend:/usr/share/nginx/html  # Nginx sert les fichiers de ce dossier
+    depends_on:
+      - backend                  # attend que le backend soit prêt
+
+  # ── SERVICE 2 : Backend ───────────────────────────────────
+  backend:
+    build: .                     # utilise notre Dockerfile
+    ports:
+      - "3000:3000"              # l'API est accessible sur http://localhost:3000
+    environment:
+      - DB_HOST=postgres         # nom du service PostgreSQL (Docker résout ce nom)
+      - DB_PORT=5432
+      - DB_NAME=tododb
+      - DB_USER=postgres
+      - DB_PASSWORD=secret123
+    depends_on:
+      postgres:
+        condition: service_healthy  # attend que PostgreSQL soit vraiment prêt
+    restart: unless-stopped
+
+  # ── SERVICE 3 : Base de données ───────────────────────────
+  postgres:
+    image: postgres:15           # image officielle, pas de Dockerfile
+    environment:
+      - POSTGRES_DB=tododb
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secret123
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # les données persistent même si le conteneur redémarre
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql  # exécuté au 1er démarrage
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s               # vérifie toutes les 5 secondes
+      timeout: 5s
+      retries: 5
+
+# ── VOLUMES ───────────────────────────────────────────────────
+volumes:
+  pgdata:                        # stockage persistant pour PostgreSQL
