@@ -32,7 +32,7 @@ pipeline {
 
         echo 'Démarrage de tous les services...'
         sh 'docker-compose up -d'
-        sh 'sleep 15'
+        sh 'sleep 20'
       }
     }
 
