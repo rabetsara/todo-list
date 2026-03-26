@@ -1,97 +1,73 @@
 const express = require('express');
 const { Pool } = require('pg');
-const cors = require('cors');
+const cors    = require('cors');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  host:     process.env.DB_HOST     || 'localhost',
+  port:     process.env.DB_PORT     || 5432,
+  database: process.env.DB_NAME     || 'tododb',
+  user:     process.env.DB_USER     || 'postgres',
+  password: process.env.DB_PASSWORD || 'secret',
 });
 
-// 🔥 Attendre PostgreSQL AVANT de lancer le serveur
-async function init() {
-  let retries = 10;
-
-  while (retries > 0) {
+// ── FONCTION : attendre que PostgreSQL soit prêt ──────────────
+async function connectWithRetry(retries = 10, delay = 3000) {
+  for (let i = 1; i <= retries; i++) {
     try {
-      await pool.query('SELECT 1');
-      console.log('✅ PostgreSQL connecté');
-      return;
+      await pool.query('SELECT 1');   // teste la connexion
+      console.log('Connecté à PostgreSQL !');
+      return;                          // connexion OK → on continue
     } catch (err) {
-      console.log(`⏳ DB non prête, tentative restante: ${retries}`);
-      retries--;
-      await new Promise(res => setTimeout(res, 3000));
+      console.log(`Tentative ${i}/${retries} — PostgreSQL pas encore prêt...`);
+      if (i === retries) {
+        console.error('Impossible de se connecter à PostgreSQL');
+        process.exit(1);
+      }
+      // attendre avant de réessayer
+      await new Promise(res => setTimeout(res, delay));
     }
   }
-
-  console.error('❌ Impossible de se connecter à PostgreSQL');
-  process.exit(1);
 }
 
-// ROUTES
+// ── ROUTES API ────────────────────────────────────────────────
+
 app.get('/tasks', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM tasks ORDER BY id ASC');
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+  const result = await pool.query('SELECT * FROM tasks ORDER BY id ASC');
+  res.json(result.rows);
 });
 
 app.post('/tasks', async (req, res) => {
-  try {
-    const { title } = req.body;
-
-    const result = await pool.query(
-      'INSERT INTO tasks (title, done) VALUES ($1, false) RETURNING *',
-      [title]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+  const { title } = req.body;
+  const result = await pool.query(
+    'INSERT INTO tasks (title, done) VALUES ($1, false) RETURNING *',
+    [title]
+  );
+  res.json(result.rows[0]);
 });
 
 app.put('/tasks/:id', async (req, res) => {
-  try {
-    const { done } = req.body;
-
-    const result = await pool.query(
-      'UPDATE tasks SET done = $1 WHERE id = $2 RETURNING *',
-      [done, req.params.id]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+  const { done } = req.body;
+  const result = await pool.query(
+    'UPDATE tasks SET done = $1 WHERE id = $2 RETURNING *',
+    [done, req.params.id]
+  );
+  res.json(result.rows[0]);
 });
 
 app.delete('/tasks/:id', async (req, res) => {
-  try {
-    await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
-    res.json({ message: 'Deleted' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'DB error' });
-  }
+  await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+  res.json({ message: 'Tâche supprimée' });
 });
 
-// START SERVER
+// ── DÉMARRAGE : attendre PostgreSQL puis lancer le serveur ────
 const PORT = process.env.PORT || 3000;
 
-init().then(() => {
+connectWithRetry().then(() => {
   app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`Backend démarré sur le port ${PORT}`);
   });
 });
