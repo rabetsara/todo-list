@@ -24,6 +24,16 @@ pipeline {
       }
     }
 
+    stage('Scanner l image avec Trivy') {
+      steps {
+        echo 'Scan de sécurité de l image avec Trivy...'
+        sh '''
+          # Lancer uniquement le service trivy via son profil
+          docker-compose --profile scan run --rm trivy
+        '''
+      }
+    }
+
     stage('Lancer l environnement de test') {
       steps {
         echo 'Nettoyage des anciens conteneurs...'
@@ -119,7 +129,7 @@ pipeline {
 
   post {
     success {
-      echo 'Pipeline réussi !'
+      echo 'Pipeline réussi ! Image saine et tests passés.'
     }
     failure {
       echo 'Le pipeline a échoué. Vérifiez les logs.'
