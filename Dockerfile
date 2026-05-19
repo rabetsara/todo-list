@@ -1,25 +1,16 @@
-# ── Dockerfile ────────────────────────────────────────────────
-# Décrit comment containeriser le backend Node.js
-# Le frontend lui est servi par Nginx (image officielle, pas besoin de Dockerfile)
-
-# Partir d'une image Node.js officielle version 18 légère
 FROM node:18-alpine
 
-# Créer le dossier de travail dans le conteneur
+# wget est nécessaire pour le healthcheck
+RUN apk add --no-cache wget
+
 WORKDIR /app
 
-# Copier package.json EN PREMIER (optimisation : si le code change
-# mais pas les dépendances, Docker ne réinstalle pas tout)
 COPY backend/package.json .
 
-# Installer les dépendances Node.js
 RUN npm install
 
-# Copier tout le reste du code backend
 COPY backend/ .
 
-# Le backend écoute sur le port 3000
 EXPOSE 3000
 
-# Commande qui démarre le serveur quand le conteneur se lance
 CMD ["node", "index.js"]
