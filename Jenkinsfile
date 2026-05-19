@@ -29,6 +29,20 @@ pipeline {
         echo 'Nettoyage des anciens conteneurs...'
         sh 'docker-compose down --remove-orphans'
 
+        echo 'Libération forcée des ports 3000 et 80...'
+        sh '''
+          for PORT in 3000 80; do
+            CONTAINER=$(docker ps --filter "publish=${PORT}" -q)
+            if [ -n "$CONTAINER" ]; then
+              echo "Port ${PORT} occupé par $CONTAINER, arrêt forcé..."
+              docker stop $CONTAINER || true
+              docker rm $CONTAINER  || true
+            else
+              echo "Port ${PORT} libre."
+            fi
+          done
+        '''
+
         echo 'Démarrage de tous les services...'
         sh 'docker-compose up -d'
 
