@@ -45,5 +45,22 @@ services:
       timeout: 5s
       retries: 5
 
+  trivy:
+    image: aquasec/trivy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - trivy-cache:/root/.cache/trivy
+    # Ne démarre pas automatiquement avec docker-compose up
+    profiles:
+      - scan
+    command: >
+      image
+      --exit-code 1
+      --severity CRITICAL,HIGH
+      --no-progress
+      --format table
+      todo-backend:latest
+
 volumes:
   pgdata:
+  trivy-cache:
