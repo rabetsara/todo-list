@@ -1,5 +1,4 @@
 services:
-
   frontend:
     image: nginx:alpine
     ports:
@@ -7,10 +6,11 @@ services:
     volumes:
       - ./frontend:/usr/share/nginx/html
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   backend:
-    build: .
+    image: todo-backend:latest
     ports:
       - "3000:3000"
     environment:
@@ -23,6 +23,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3000/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
   postgres:
     image: postgres:15
