@@ -16,7 +16,7 @@ pipeline {
       }
     }
 
-    stage('Construire la boîte Docker') {
+    stage('Construire l image Docker') {
       steps {
         echo 'Construction de l image Docker du backend...'
         sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
@@ -27,12 +27,36 @@ pipeline {
     stage('Lancer l environnement de test') {
       steps {
         echo 'Nettoyage des anciens conteneurs...'
-        // ← AJOUT : on arrête tout ce qui tourne AVANT de démarrer
         sh 'docker-compose down --remove-orphans'
 
         echo 'Démarrage de tous les services...'
         sh 'docker-compose up -d'
-        sh 'sleep 20'
+
+        echo 'Attente que le backend soit healthy...'
+        sh '''
+          for i in $(seq 1 24); do
+            HEALTH=$(docker inspect --format="{{.State.Health.Status}}" \
+              $(docker-compose ps -q backend) 2>/dev/null || echo "unknown")
+            echo "Tentative $i/24 - Backend status: $HEALTH"
+
+            if [ "$HEALTH" = "healthy" ]; then
+              echo "Backend healthy et prêt !"
+              exit 0
+            fi
+
+            if [ "$HEALTH" = "unhealthy" ]; then
+              echo "=== Backend unhealthy ! Affichage des logs ==="
+              docker-compose logs --tail=80 backend
+              exit 1
+            fi
+
+            sleep 5
+          done
+
+          echo "=== Timeout : backend pas prêt après 120s. Logs ==="
+          docker-compose logs --tail=80 backend
+          exit 1
+        '''
       }
     }
 
@@ -42,7 +66,6 @@ pipeline {
       }
       post {
         always {
-          // ← IMPORTANT : arrêter les conteneurs après les tests
           sh 'docker-compose down'
         }
       }
@@ -58,6 +81,7 @@ pipeline {
         )]) {
           sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
           sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+          sh "docker push ${IMAGE_NAME}:latest"
         }
       }
     }
@@ -76,6 +100,7 @@ pipeline {
         """
       }
     }
+
   }
 
   post {
@@ -84,7 +109,6 @@ pipeline {
     }
     failure {
       echo 'Le pipeline a échoué. Vérifiez les logs.'
-      // Nettoyer même en cas d'échec
       sh 'docker-compose down --remove-orphans'
     }
     always {
