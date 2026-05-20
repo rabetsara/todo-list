@@ -26,11 +26,18 @@ pipeline {
 
     stage('Scanner l image avec Trivy') {
       steps {
-        echo 'Scan de sécurité de l image avec Trivy...'
+        echo 'Scan de sécurité Trivy (timeout désactivé)...'
         sh '''
-          # Lancer uniquement le service trivy via son profil
-          docker-compose --profile scan run --rm trivy
+          docker-compose --profile scan run \
+            -e TRIVY_TIMEOUT=0 \
+            --rm trivy
         '''
+      }
+      post {
+        failure {
+          echo '⚠️ Trivy a détecté des vulnérabilités ou a échoué.'
+          echo 'Consulter les logs ci-dessus pour les détails.'
+        }
       }
     }
 
@@ -46,7 +53,7 @@ pipeline {
             if [ -n "$CONTAINER" ]; then
               echo "Port ${PORT} occupé par $CONTAINER, arrêt forcé..."
               docker stop $CONTAINER || true
-              docker rm $CONTAINER  || true
+              docker rm   $CONTAINER || true
             else
               echo "Port ${PORT} libre."
             fi
