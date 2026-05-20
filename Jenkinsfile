@@ -26,17 +26,39 @@ pipeline {
 
     stage('Scanner l image avec Trivy') {
       steps {
-        echo 'Scan de sécurité Trivy (timeout désactivé)...'
+        echo 'Scan de sécurité Trivy (DB en cache, pas de téléchargement)...'
         sh '''
-          docker-compose --profile scan run \
-            -e TRIVY_TIMEOUT=0 \
-            --rm trivy
+          # Vérifier que la DB Trivy est bien en cache
+          DB_EXISTS=$(docker run --rm \
+            -v trivy-cache:/root/.cache/trivy \
+            aquasec/trivy:latest \
+            --version 2>/dev/null && \
+            docker run --rm \
+              -v trivy-cache:/root/.cache/trivy \
+              busybox \
+              find /root/.cache/trivy -name "*.db" 2>/dev/null | wc -l || echo "0")
+
+          if [ "$DB_EXISTS" = "0" ]; then
+            echo "⚠️  DB Trivy absente du cache, téléchargement..."
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock \
+              -v trivy-cache:/root/.cache/trivy \
+              aquasec/trivy:latest \
+              image \
+              --download-db-only \
+              --timeout 30m \
+              --no-progress
+          else
+            echo "✅ DB Trivy trouvée en cache, scan direct."
+          fi
+
+          # Lancer le scan sans re-télécharger la DB
+          docker-compose --profile scan run --rm trivy
         '''
       }
       post {
         failure {
-          echo '⚠️ Trivy a détecté des vulnérabilités ou a échoué.'
-          echo 'Consulter les logs ci-dessus pour les détails.'
+          echo '⚠️ Trivy a détecté des vulnérabilités critiques ou a échoué.'
         }
       }
     }
