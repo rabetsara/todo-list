@@ -26,88 +26,55 @@ pipeline {
 
     stage('Scanner l image avec Trivy') {
       steps {
-        echo 'Scan de sécurité Trivy (DB en cache, pas de téléchargement)...'
-        sh '''
-          # Vérifier que la DB Trivy est bien en cache
-          DB_EXISTS=$(docker run --rm \
-            -v trivy-cache:/root/.cache/trivy \
-            aquasec/trivy:latest \
-            --version 2>/dev/null && \
-            docker run --rm \
-              -v trivy-cache:/root/.cache/trivy \
-              busybox \
-              find /root/.cache/trivy -name "*.db" 2>/dev/null | wc -l || echo "0")
-
-          if [ "$DB_EXISTS" = "0" ]; then
-            echo "⚠️  DB Trivy absente du cache, téléchargement..."
-            docker run --rm \
-              -v /var/run/docker.sock:/var/run/docker.sock \
-              -v trivy-cache:/root/.cache/trivy \
-              aquasec/trivy:latest \
-              image \
-              --download-db-only \
-              --timeout 30m \
-              --no-progress
-          else
-            echo "✅ DB Trivy trouvée en cache, scan direct."
-          fi
-
-          # Lancer le scan sans re-télécharger la DB
-          docker-compose --profile scan run --rm trivy
-        '''
+        echo 'Scan de sécurité Trivy...'
+        sh 'docker-compose --profile scan run --rm trivy'
       }
       post {
         failure {
-          echo '⚠️ Trivy a détecté des vulnérabilités critiques ou a échoué.'
+          echo '⚠️ Trivy a détecté des vulnérabilités.'
         }
       }
     }
 
     stage('Lancer l environnement de test') {
       steps {
-        echo 'Nettoyage des anciens conteneurs...'
-        sh 'docker-compose down --remove-orphans'
+        sh 'docker-compose down --remove-orphans || true'
 
-        echo 'Libération forcée des ports 3000 et 80...'
         sh '''
           for PORT in 3000 80; do
             CONTAINER=$(docker ps --filter "publish=${PORT}" -q)
             if [ -n "$CONTAINER" ]; then
-              echo "Port ${PORT} occupé par $CONTAINER, arrêt forcé..."
               docker stop $CONTAINER || true
               docker rm   $CONTAINER || true
-            else
-              echo "Port ${PORT} libre."
             fi
           done
         '''
 
-        echo 'Démarrage de tous les services...'
         sh 'docker-compose up -d'
 
-        echo 'Attente que le backend soit healthy...'
+        // Attendre backend healthy — max 90 secondes
         sh '''
-          for i in $(seq 1 24); do
-            HEALTH=$(docker inspect --format="{{.State.Health.Status}}" \
+          echo "Attente que le backend soit healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format="{{.State.Health.Status}}" \
               $(docker-compose ps -q backend) 2>/dev/null || echo "unknown")
-            echo "Tentative $i/24 - Backend status: $HEALTH"
+            echo "Tentative $i/30 - Status: $STATUS"
 
-            if [ "$HEALTH" = "healthy" ]; then
-              echo "Backend healthy et prêt !"
+            if [ "$STATUS" = "healthy" ]; then
+              echo "✅ Backend healthy !"
               exit 0
             fi
 
-            if [ "$HEALTH" = "unhealthy" ]; then
-              echo "=== Backend unhealthy ! Affichage des logs ==="
-              docker-compose logs --tail=80 backend
+            if [ "$STATUS" = "unhealthy" ]; then
+              echo "❌ Backend unhealthy ! Logs :"
+              docker-compose logs --tail=50 backend
               exit 1
             fi
 
-            sleep 5
+            sleep 3
           done
-
-          echo "=== Timeout : backend pas prêt après 120s. Logs ==="
-          docker-compose logs --tail=80 backend
+          echo "❌ Timeout 90s dépassé. Logs :"
+          docker-compose logs --tail=50 backend
           exit 1
         '''
       }
@@ -119,7 +86,7 @@ pipeline {
       }
       post {
         always {
-          sh 'docker-compose down'
+          sh 'docker-compose down || true'
         }
       }
     }
@@ -158,11 +125,11 @@ pipeline {
 
   post {
     success {
-      echo 'Pipeline réussi ! Image saine et tests passés.'
+      echo '✅ Pipeline réussi ! Image saine et tests passés.'
     }
     failure {
-      echo 'Le pipeline a échoué. Vérifiez les logs.'
-      sh 'docker-compose down --remove-orphans'
+      echo '❌ Le pipeline a échoué. Vérifiez les logs.'
+      sh 'docker-compose down --remove-orphans || true'
     }
     always {
       sh 'docker image prune -f'
