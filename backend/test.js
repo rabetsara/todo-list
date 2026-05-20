@@ -4,7 +4,7 @@ function request(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
     const options = {
-      hostname: 'localhost',
+      hostname: '127.0.0.1',  // ← IPv4 forcé, pas localhost
       port: 3000,
       path,
       method,
@@ -16,7 +16,13 @@ function request(method, path, body) {
     const req = http.request(options, res => {
       let body = '';
       res.on('data', chunk => body += chunk);
-      res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, body: JSON.parse(body) });
+        } catch {
+          resolve({ status: res.statusCode, body: {} });
+        }
+      });
     });
     req.on('error', reject);
     if (data) req.write(data);
@@ -105,10 +111,10 @@ async function runTests() {
 
   console.log(`\n📊 Résultats : ${passed} passés, ${failed} échoués`);
   if (failed > 0) process.exit(1);
-  else console.log('🎉 Tous les tests ont réussi !');
+  console.log('🎉 Tous les tests ont réussi !');
 }
 
 runTests().catch(err => {
-  console.error('❌ Erreur fatale :', err);
+  console.error('❌ Erreur fatale :', err.message);
   process.exit(1);
 });
