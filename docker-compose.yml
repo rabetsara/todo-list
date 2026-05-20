@@ -52,17 +52,16 @@ services:
       - trivy-cache:/root/.cache/trivy
     profiles:
       - scan
-    environment:
-      - TRIVY_TIMEOUT=0
     command: >
       image
       --exit-code 0
       --severity CRITICAL,HIGH
       --no-progress
-      --timeout 0
+      --skip-db-update
       --format table
       todo-backend:latest
 
 volumes:
   pgdata:
   trivy-cache:
+    external: true
